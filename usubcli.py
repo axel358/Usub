@@ -1,27 +1,11 @@
 #!/bin/python
 from youtube_transcript_api import YouTubeTranscriptApi as yt_api
 from youtube_transcript_api.formatters import WebVTTFormatter
-import urllib.parse as urlparse
-
-
-def get_video_id(url):
-    url_data = urlparse.urlparse(url)
-    if url_data.hostname == 'youtu.be':
-        return url_data.path[1:]
-    if url_data.hostname in ('www.youtube.com', 'youtube.com', 'm.youtube.com'):
-        if url_data.path == '/watch':
-            query = urlparse.parse_qs(url_data.query)
-            return query['v'][0]
-        if url_data.path[:7] == '/embed/':
-            return url_data.path.split('/')[2]
-        if url_data.path[:3] == '/v/':
-            return url_data.path.split('/')[2]
-    return None
-
+import Utils
 
 while True:
     vid_url = input('Enter video url: ')
-    vid_id = get_video_id(vid_url)
+    vid_id = Utils.get_video_id(vid_url)
 
     if vid_id is None:
         print('Please enter a valid YouTube link')
