@@ -1,11 +1,12 @@
-#!/bin/python
+#!/bin/python3
+
 from youtube_transcript_api import YouTubeTranscriptApi as yt_api
 from youtube_transcript_api.formatters import WebVTTFormatter
-import Utils
+import utils
 
 while True:
     vid_url = input('Enter video url: ')
-    vid_id = Utils.get_video_id(vid_url)
+    vid_id = utils.get_video_id(vid_url)
 
     if vid_id is None:
         print('Please enter a valid YouTube link')

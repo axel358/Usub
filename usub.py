@@ -1,144 +1,127 @@
 #!/usr/bin/python3
 
 import sys
-import gi
-import utils
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gio, Gdk
 from youtube_transcript_api import YouTubeTranscriptApi as yt_api
 from youtube_transcript_api.formatters import WebVTTFormatter
+import PyQt5.QtWidgets as Qt
+from PyQt5.QtGui import QIcon
+from PyQt5 import QtCore
+import utils
+from toast import QToaster
+import resources
 
 
-class USub(Gtk.Application):
+class MainWindow(Qt.QMainWindow):
     def __init__(self):
-        super().__init__(application_id='cu.axel.usub')
+        super().__init__()
 
-        self.builder = Gtk.Builder.new_from_file('window.ui')
-        self.window = None
+        self.initUI()
 
-        self.subs_list_box = self.builder.get_object('subs_list_box')
-        self.url_entry = self.builder.get_object('url_entry')
+    def initUI(self):
 
-        self.builder.connect_signals(self)
+        centerWidget = Qt.QWidget()
+        vbox = Qt.QVBoxLayout()
+        centerWidget.setLayout(vbox)
+        self.setCentralWidget(centerWidget)
 
-    def do_activate(self):
-        if not self.window:
-            self.window = self.builder.get_object('main_window')
-            self.window.set_application(self)
+        self.urlEntry = Qt.QLineEdit()
+        self.urlEntry.setPlaceholderText('Enter video url')
+        goButton = Qt.QPushButton('GO')
+        goButton.clicked.connect(self.parse_url)
 
-        self.window.show_all()
+        self.subsLv = Qt.QListWidget()
+        self.subsLv.setSelectionMode(Qt.QAbstractItemView.NoSelection)
+        self.subsLv.setSpacing(5)
+        vbox.addWidget(self.subsLv)
+
+        exitAct = Qt.QAction(QIcon.fromTheme('help-about', QIcon(':/icons/help-about.svg')), 'About', self)
+        exitAct.triggered.connect(self.showAboutDialog)
+
+        goAction = Qt.QAction(QIcon.fromTheme('edit-find', QIcon(':/icons/edit-find.svg')), 'GO', self)
+        goAction.triggered.connect(self.parse_url)
+
+        toolbar = self.addToolBar('main')
+        toolbar.addWidget(self.urlEntry)
+        toolbar.addAction(goAction)
+        toolbar.addAction(exitAct)
+
+        self.setGeometry(300, 300, 600, 450)
+        self.setWindowTitle('USub')
+        self.setWindowIcon(QIcon.fromTheme('usub', QIcon(':/icons/usub.svg')))
+        self.show()
 
     def parse_url(self, button):
-        video_id = utils.get_video_id(self.url_entry.get_text())
+        video_id = utils.get_video_id(self.urlEntry.text())
         if video_id:
             try:
                 sub_list = yt_api.list_transcripts(video_id)
                 self.update_sub_list(sub_list)
             except Exception as e:
-                print(e)
-                dialog = Gtk.MessageDialog(
-                    transient_for=self.window,
-                    flags=0, message_type=Gtk.MessageType.INFO,
-                    buttons=Gtk.ButtonsType.OK,
-                    text='Something went wrong')
-                dialog.format_secondary_text('Can\'t get subtitles for this video')
-                dialog.run()
-                dialog.destroy()
+                Qt.QMessageBox.critical(self, 'Cannot get subs for the current video', str(e))
+        else:
+            QToaster.showMessage(self, 'Please enter a valid link', margin=15)
 
-    def download_sub(self, button, sub):
-        sub_content = sub.fetch()
-        self.save_sub(sub_content, 'subtitle_' + sub.language_code+'.srt')
+    def update_sub_list(self, subs):
+        self.subsLv.clear()
 
-    def translate_sub(self, button, sub):
-        dialog = Gtk.Dialog(title='Language code', use_header_bar=True)
-        dialog.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK
-        )
-        dialog.get_content_area().pack_start(Gtk.Label(label='Enter the language code to translate to'), False, False,
-                                             10)
-        lang_code_entry = Gtk.Entry()
-        lang_code_entry.set_margin_start(5)
-        lang_code_entry.set_margin_end(5)
-        dialog.get_content_area().pack_start(lang_code_entry, True, True, 10)
-        dialog.show_all()
-        response = dialog.run()
+        for sub in subs:
+            item = Qt.QListWidgetItem(sub.language)
+            item.setIcon(QIcon.fromTheme('application-x-subrip', QIcon(':/icons/subs.svg')))
+            actionsBox = Qt.QHBoxLayout()
+            actionsWidget = Qt.QWidget()
+            actionsWidget.setLayout(actionsBox)
+            translateButton = Qt.QPushButton('Translate')
+            translateButton.clicked.connect(lambda: self.translateSub(sub))
+            downloadButton = Qt.QPushButton()
+            downloadButton.setIcon(QIcon.fromTheme('download', QIcon(':/icons/download.svg')))
+            actionsBox.addStretch()
+            actionsBox.setContentsMargins(0, 0, 0, 0)
+            actionsBox.addWidget(translateButton)
+            actionsBox.addWidget(downloadButton)
+            downloadButton.clicked.connect(lambda state, s=sub: self.downloadSub(s))
+            self.subsLv.addItem(item)
+            self.subsLv.setItemWidget(item, actionsWidget)
 
-        if response == Gtk.ResponseType.OK:
-            if len(lang_code := lang_code_entry.get_text()) > 1:
+    def downloadSub(self, sub):
+        print(sub.language_code)
+        subContent = sub.fetch()
+        self.saveSub('subtitle_' + sub.language_code+'.srt', subContent)
+
+    def translateSub(self, sub):
+        dialog = Qt.QDialog(self)
+        dialog.setWindowTitle('Translate subtitle')
+        buttonBox = Qt.QDialogButtonBox(Qt.QDialogButtonBox.Ok | Qt.QDialogButtonBox.Cancel)
+        buttonBox.accepted.connect(dialog.accept)
+        buttonBox.rejected.connect(dialog.reject)
+        vbox = Qt.QVBoxLayout()
+        languageEntry = Qt.QLineEdit()
+        languageEntry.setPlaceholderText('en')
+        vbox.addWidget(Qt.QLabel('Enter the language code to transtale to'))
+        vbox.addWidget(languageEntry)
+        vbox.addWidget(buttonBox)
+        dialog.setLayout(vbox)
+
+        if dialog.exec_():
+            if len(lang_code := languageEntry.text()) > 1:
                 sub_content = sub.translate(lang_code).fetch()
-                self.save_sub(sub_content, 'subtitle_' + lang_code + '.srt')
+                self.saveSub('subtitle_' + lang_code + '.srt', sub_content)
 
-        dialog.destroy()
-
-    def save_sub(self, sub_content, name):
-        dialog = Gtk.FileChooserDialog(title="Save subtitle", parent=self.window, action=Gtk.FileChooserAction.SAVE)
-        dialog.add_buttons(
-            Gtk.STOCK_CANCEL,
-            Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_SAVE,
-            Gtk.ResponseType.OK,
-        )
-        dialog.set_current_name(name)
-
-        response = dialog.run()
-        if response == Gtk.ResponseType.OK:
+    def saveSub(self, name, subContent):
+        files = Qt.QFileDialog.getSaveFileName(self, directory=name)
+        if files[0]:
             formatter = WebVTTFormatter()
-            sub = formatter.format_transcript(sub_content)
-            with open(dialog.get_filename(), 'w') as file:
+            sub = formatter.format_transcript(subContent)
+            with open(files[0], 'w') as file:
                 file.write(sub)
 
-        dialog.destroy()
+            QToaster.showMessage(self, 'Subtitle saved', margin=15)
 
-    def show_options(self, widget, data, option1, option2):
-        option1.set_opacity(1)
-        option2.set_opacity(1)
-        option1.set_sensitive(True)
-        option2.set_sensitive(True)
-
-    def hide_options(self, widget, data,  option1, option2):
-        option1.set_opacity(0)
-        option2.set_opacity(0)
-        option1.set_sensitive(False)
-        option2.set_sensitive(False)
-
-    def update_sub_list(self, sub_list):
-        for child in self.subs_list_box.get_children():
-            self.subs_list_box.remove(child)
-
-        for sub in sub_list:
-            row = Gtk.ListBoxRow()
-            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-            sub_lang_label = Gtk.Label(label=sub.language)
-            sub_download_button = Gtk.Button(label='Download')
-            sub_download_button.get_style_context().add_class('suggested-action')
-            sub_download_button.connect('clicked', self.download_sub, sub)
-            sub_translate_button = Gtk.Button(label='Translate')
-            sub_translate_button.connect('clicked', self.translate_sub, sub)
-            hbox.pack_start(sub_lang_label, False, True, 5)
-            hbox.pack_end(sub_download_button, False, True, 5)
-            hbox.pack_end(sub_translate_button, False, True, 5)
-
-            self.hide_options(None, None, sub_download_button, sub_translate_button)
-            event_box = Gtk.EventBox()
-            event_box.connect('enter-notify-event', self.show_options, sub_download_button, sub_translate_button)
-            event_box.connect('leave-notify-event', self.hide_options, sub_download_button, sub_translate_button)
-            event_box.add(hbox)
-            row.add(event_box)
-            self.subs_list_box.add(row)
-
-        self.subs_list_box.show_all()
-
-    def show_about_dialog(self, button):
-        dialog = Gtk.AboutDialog()
-        dialog.props.program_name = 'USub'
-        dialog.props.version = "0.1.0"
-        dialog.props.authors = ['Axel358']
-        dialog.props.copyright = '(C) 2021 Axel358'
-        dialog.props.logo_icon_name = 'usub'
-        dialog.set_transient_for(self.window)
-        dialog.show()
+    def showAboutDialog(self):
+        Qt.QMessageBox.about(self, 'About USub', 'USub \nYouTube videos subtitle downloader \nAxel358 2022 \nv1.0 GPLv3.0')
 
 
-if __name__ == "__main__":
-    app = USub()
-    app.run(sys.argv)
+if __name__ == '__main__':
+
+    app = Qt.QApplication(sys.argv)
+    window = MainWindow()
+    sys.exit(app.exec_())
