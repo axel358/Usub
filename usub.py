@@ -83,7 +83,6 @@ class MainWindow(Qt.QMainWindow):
             self.subsLv.setItemWidget(item, actionsWidget)
 
     def downloadSub(self, sub):
-        print(sub.language_code)
         subContent = sub.fetch()
         self.saveSub('subtitle_' + sub.language_code+'.srt', subContent)
 
