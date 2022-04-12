@@ -4,7 +4,7 @@ import sys
 from youtube_transcript_api import YouTubeTranscriptApi as yt_api
 from youtube_transcript_api.formatters import WebVTTFormatter
 import PyQt5.QtWidgets as Qt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QPalette, QColor
 from PyQt5 import QtCore
 import utils
 from toast import QToaster
@@ -18,6 +18,11 @@ class MainWindow(Qt.QMainWindow):
         self.initUI()
 
     def initUI(self):
+
+        '''palette = self.palette()
+        palette.setColor(QPalette.Highlight, QColor('red'))
+        palette.setColor(QPalette.HighlightedText, QColor('red'))
+        self.setPalette(palette)'''
 
         centerWidget = Qt.QWidget()
         vbox = Qt.QVBoxLayout()
@@ -66,11 +71,12 @@ class MainWindow(Qt.QMainWindow):
 
         for sub in subs:
             item = Qt.QListWidgetItem(sub.language)
-            item.setIcon(QIcon.fromTheme('application-x-subrip', QIcon(':/icons/subs.svg')))
+            item.setIcon(QIcon.fromTheme('add-subtitle', QIcon(':/icons/subtitle.svg')))
             actionsBox = Qt.QHBoxLayout()
             actionsWidget = Qt.QWidget()
             actionsWidget.setLayout(actionsBox)
-            translateButton = Qt.QPushButton('Translate')
+            translateButton = Qt.QPushButton()
+            translateButton.setIcon(QIcon.fromTheme('crow-translate-tray', QIcon(':/icons/translate.svg')))
             translateButton.clicked.connect(lambda: self.translateSub(sub))
             downloadButton = Qt.QPushButton()
             downloadButton.setIcon(QIcon.fromTheme('download', QIcon(':/icons/download.svg')))
